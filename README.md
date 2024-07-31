@@ -10,8 +10,8 @@ For example if someone attempts to access the fileshare `\\server\share` with th
 The DC locator process is documented [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/how-domain-controllers-are-located) but I've found that either not all the information is shared or is slightly different in real life.
 Based on my investigations I've found this is what happens.
 
-+ Windows sends a DNS query for the `SRV` record `_kerberos_._tcp.dc._msdcs.{realm}`
-  + `{realm}` is replaced by the realm in question, for example `_kerberos_._tcp.dc._msdcs.contoso.com`
++ Windows sends a DNS query for the `SRV` record `_kerberos._tcp.dc._msdcs.{realm}`
+  + `{realm}` is replaced by the realm in question, for example `_kerberos._tcp.dc._msdcs.contoso.com`
   + The `_ldap._tcp.dc._msdcs.{realm}` record is also used by `nltest.exe /dsgetdc` but SSPI uses `_kerberos` only in its lookups
   + The `LocalKdc.exe` program sets both so both scenarios works
 + Windows sends an unauthenticated LDAP search request over UDP to retrieve the domain info
@@ -50,8 +50,8 @@ sequenceDiagram
     participant D as DNS
     participant L as LDAP
     participant K as KDC
-    Note over W,D: LSA queries DNS for the _kerberos_ service
-    W->>D: SRV query<br/>_kerberos_._tcp.dc._msdcs.contoso.com
+    Note over W,D: LSA queries DNS for the _kerberos service
+    W->>D: SRV query<br/>_kerberos._tcp.dc._msdcs.contoso.com
     D->>W: Name: dc01.contoso.com Port: 88
     Note over W,D: LSA looks up the Name through an<br/>A query (and also AAAA).
     W->>D: A query<br/>dc01.contoso.com
@@ -93,7 +93,7 @@ The console will display two messages showing the DNS and LDAP server are up and
 By default the service will bind to `127.0.0.1` but when providing another argument, the service will bind to that address instead.
 In the above example, `169.254.13.1` is the IP for a loopback network adapter installed separately.
 
-When the service is running you can test the Kerberos client authentication by running `LocalKdc.exe test` in another shell while the server is running:
+When the service is running you can test the Kerberos authentication process through SSPI by running `LocalKdc.exe test` in another shell while the server is running:
 
 ```powershell
 . ".\bin\LocalKdc\$env:PROCESSOR_ARCHITECTURE\LocalKdc.exe" test
@@ -106,9 +106,10 @@ When the service is running you can test the Kerberos client authentication by r
 00:20:09 info: LocalKdc.SspiClient[0] Calling InitializeSecurityContextW
 00:20:09 info: LocalKdc.SspiClient[0] InitializeSecurityContextW returned 0
 00:20:09 info: LocalKdc.SspiClient[0] Return Flags ISC_RET_ALLOCATED_MEMORY, Token 6082028C06092A86488...
+...
 ```
 
-The `Token` displayed is the hex encoding of the service ticket returned by the KDC.
+The `Tokens` for each exchange in the auth are displayed as hex string.
 
 ## Troubleshooting
 There are a few moving parts in this process so it can be helpful to verify each component when troubleshooting issues.
@@ -139,11 +140,11 @@ Get-DnsClientNrptRule
 # Comment                          :
 
 # Verify we can resolve the DC locator SRV record
-Resolve-DnsName -Name _kerberos_._tcp.dc._msdcs.contoso.com -Type SRV
+Resolve-DnsName -Name _kerberos._tcp.dc._msdcs.contoso.com -Type SRV
 
-# Name                                  Type TTL Section NameTarget       Priority
-# ----                                  ---- --- ------- ----------       --------
-# _kerberos_._tcp.dc._msdcs.contoso.com SRV  600 Answer  dc01.contoso.com 0
+# Name                                 Type TTL Section NameTarget       Priority
+# ----                                 ---- --- ------- ----------       --------
+# _kerberos._tcp.dc._msdcs.contoso.com SRV  600 Answer  dc01.contoso.com 0
 
 # Verify we can resolve the NameTarget to 127.0.0.1
 Resolve-DnsName -Name dc01.contoso.com -Type A
