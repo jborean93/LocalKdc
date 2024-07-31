@@ -29,6 +29,8 @@ Once validated Windows will then use the host returned by the `SRV` record as th
 When running a local KDC we have all the tools necessary to configure Windows to use a locally running KDC for Kerberos authentication.
 The `LocalKdc` C# project in this repo runs a DNS, LDAP, and KDC service on localhost and configures the DNS Name Resolution Policy Table (NRPT) to redirect and DNS queries for our `realm` to the local DNS service.
 From there when attempting to authenticate with Kerberos to our realm, Windows will go through the DC locator process with our custom service which just points back to localhost.
+The KDC uses [Kerberos.NET](https://github.com/dotnet/Kerberos.NET) as the underlying library but any other KDC could theoretically work here.
+It should also be possible to edit the code so listening KDC port just tunnel the data to another KDC located elsewhere but that's outside the scope of this repo.
 
 The DNS NRPT setup is what allows us to point Windows to our local DNS server when querying a custom namespace.
 The PowerShell cmdlet [Add-DnsClientNrptRule](https://learn.microsoft.com/en-us/powershell/module/dnsclient/add-dnsclientnrptrule?view=windowsserver2022-ps) can be used to create these rules manually but this program will do so automatically.
