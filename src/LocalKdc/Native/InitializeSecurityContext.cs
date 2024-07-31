@@ -5,6 +5,8 @@ namespace LocalKdc.Native;
 
 public static unsafe partial class Secur32
 {
+    public const int SEC_I_CONTINUE_NEEDED = 0x00090312;
+
     [Flags]
     public enum InitiatorContextRequestFlags
     {

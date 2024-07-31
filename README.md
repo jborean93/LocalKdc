@@ -10,9 +10,10 @@ For example if someone attempts to access the fileshare `\\server\share` with th
 The DC locator process is documented [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/how-domain-controllers-are-located) but I've found that either not all the information is shared or is slightly different in real life.
 Based on my investigations I've found this is what happens.
 
-+ Windows sends a DNS query for the `SRV` record `_ldap._tcp.dc._msdcs.{realm}`
-  + `{realm}` is replaced by the realm in question, for example `_ldap._tcp.dc._msdcs.contoso.com`
-  + There does seem to be a fallback for `_kerberos._tcp.dc._msdcs.{realm}` but the `_ldap` service is always checked first
++ Windows sends a DNS query for the `SRV` record `_kerberos_._tcp.dc._msdcs.{realm}`
+  + `{realm}` is replaced by the realm in question, for example `_kerberos_._tcp.dc._msdcs.contoso.com`
+  + The `_ldap._tcp.dc._msdcs.{realm}` record is also used by `nltest.exe /dsgetdc` but SSPI uses `_kerberos` only in its lookups
+  + The `LocalKdc.exe` program sets both so both scenarios works
 + Windows sends an unauthenticated LDAP search request over UDP to retrieve the domain info
   + This is covered in more details under [LDAP Ping](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/895a7744-aff3-4f64-bcfa-f8c05915d2e9)
   + The search request filter is in the form of `(&(DnsDomain=...)(DnsHostName=...)(Host=...)(NtVer=...))`
@@ -49,8 +50,8 @@ sequenceDiagram
     participant D as DNS
     participant L as LDAP
     participant K as KDC
-    Note over W,D: LSA queries DNS for the _ldap service
-    W->>D: SRV query<br/>_ldap._tcp.dc._msdcs.contoso.com
+    Note over W,D: LSA queries DNS for the _kerberos_ service
+    W->>D: SRV query<br/>_kerberos_._tcp.dc._msdcs.contoso.com
     D->>W: Name: dc01.contoso.com Port: 88
     Note over W,D: LSA looks up the Name through an<br/>A query (and also AAAA).
     W->>D: A query<br/>dc01.contoso.com
@@ -138,11 +139,11 @@ Get-DnsClientNrptRule
 # Comment                          :
 
 # Verify we can resolve the DC locator SRV record
-Resolve-DnsName -Name _ldap._tcp.dc._msdcs.contoso.com -Type SRV
+Resolve-DnsName -Name _kerberos_._tcp.dc._msdcs.contoso.com -Type SRV
 
-# Name                             Type TTL Section NameTarget       Priority
-# ----                             ---- --- ------- ----------       --------
-# _ldap._tcp.dc._msdcs.contoso.com SRV  600 Answer  dc01.contoso.com 0
+# Name                                  Type TTL Section NameTarget       Priority
+# ----                                  ---- --- ------- ----------       --------
+# _kerberos_._tcp.dc._msdcs.contoso.com SRV  600 Answer  dc01.contoso.com 0
 
 # Verify we can resolve the NameTarget to 127.0.0.1
 Resolve-DnsName -Name dc01.contoso.com -Type A
@@ -173,7 +174,8 @@ nltest /dsgetdc:contoso.com /force
 Using `nltest /dsgetdc` will perform the DNS checks that were verified above but will also do the LDAP Ping check and verify the results returned by the service.
 In the above example we can see that the `Address` for the DC is seen as `127.0.0.1` and the `Flags` indicate that is can be used as a `KDC`.
 
-Once the above works then Windows should be able to contact the KDC like normal and get the service ticket.
+Once the above works then Windows should be able to contact the KDC like normal and perform an example Kerberos authentication scenario and encryption test.
+This involves calling SSPI for both the initiator and acceptor using Kerberos auth and verify both sides can talk to our KDC.
 If there are any more failures you'll have to use a tool like Wireshark to inspect the network traffic and look into Kerberos logging to figure out why it didn't work.
 
 A common error to get back from the client test is
@@ -205,12 +207,44 @@ Remove-ItemProperty -Path $keyPath -Name FarKdcTimeout
 This value is set immediately, no reboot is required for this to be set.
 What this means is to reset the cache but still keep the default of 10 minutes you should set the value to `0`, rerun the client test, then delete the registry property.
 
+## SSPI Details
+Once the KDC is all setup we need to understand how SSPI can interact with the local KDC and how Kerberos auth can be used with it.
+The client/initiator needs to make the following two SSPI calls:
+
++ [AcquireCredentialsHandle](https://learn.microsoft.com/en-us/windows/win32/secauthn/acquirecredentialshandle--general)
+  + `pszPackage` is set to `Kerberos` (or `Negotiate`)
+  + `fCredentialUse` is set to `SECPKG_CRED_OUTBOUND`
+  + `pAuthData` needs to be [SEC_WINNT_AUTH_IDENTITY_W](https://learn.microsoft.com/en-us/windows/win32/api/sspi/ns-sspi-sec_winnt_auth_identity_w) value
+  + `User` is set to the UPN, e.g. `user@CONTOSO.COM`
+  + `Password` is set to the user's password
++ [InitializeSecurityContext](https://learn.microsoft.com/en-us/windows/win32/api/sspi/nf-sspi-initializesecuritycontextw)
+  + `pTargetName` is set to the target SPN, e.g. `host/test-service.contoso.com`
+
+The server/acceptor needs to make the following two SSPI calls:
+
++ [AcquireCredentialsHandle](https://learn.microsoft.com/en-us/windows/win32/secauthn/acquirecredentialshandle--general)
+  + `pszPackage` is set to `Kerberos` (or `Negotiate`)
+  + `fCredentialUse` is set to `SECPKG_CRED_INBOUND`
+  + `pAuthData` needs to be [SEC_WINNT_AUTH_IDENTITY_EX2](https://learn.microsoft.com/en-us/windows/win32/api/sspi/ns-sspi-sec_winnt_auth_identity_ex2) value
+  + The value at `UserOffset` is set to the SPN, e.g. `host/test-service.contoso.com`
+  + The value at `PackedCredentialsOffset` is set to [SEC_WINNT_AUTH_PACKED_CREDENTIALS](https://learn.microsoft.com/en-us/windows/win32/api/sspi/ns-sspi-sec_winnt_auth_packed_credentials)
+  + The value of `SEC_WINNT_AUTH_PACKED_CREDENTIALS.AuthData.CredType` is set to `SEC_WINNT_AUTH_DATA_TYPE_KEYTAB` (`D587AAE8-F78F-4455-A112-C934BEEE7CE1`)
+  + The value of `SEC_WINNT_AUTH_PACKED_CREDENTIALS.AuthData.CredData` is for the raw keytab bytes
+  + All the offsets used in these structures need to be contiguous memory from the start of `SEC_WINNT_AUTH_IDENTITY_EX2`
+  + The offset values are offsets to where the bytes are in the block from the start of the structure the offset is stored in
++ [AcceptSecurityContext](https://learn.microsoft.com/en-us/windows/win32/api/sspi/nf-sspi-acceptsecuritycontext)
+
+In both scenarios the client and server will exchange the output tokens generated by `InitializeSecurityContext` and `AcceptSecurityContext` like any normal authentication exchange.
+The use of a keytab is not documented in any place I can find but it does work.
+See [src\LocalKdc\SspiTest.cs](./src/LocalKdc/SspiTest.cs) for an example of how it is setup and used in C#.
+
+What this means is that Kerberos auth will be used from a client's perspective when the username is in the UPN format.
+The server side can use Kerberos auth if the keytab data has been supplied as the credential which usually means you need to be in charge of how it is called.
+
 ## Unknowns
 There are still some unknowns that would be cool to look into in the future.
 Some of the things I would love to figure out if possible is:
 
-+ Have an inbound/service authenticator through SSPI on the same host
-  + I can do this through another API but it doesn't look like SSPI offers a keytab like mechanism to achieve this
 + Look into proxying/socket redirection of the KDC traffic
   + Instead of a HTTP based KDC proxy, the client could just listen on localhost and talk to the KDC through any other means
 + Find out more details on the ETW traces and document them to help further troubleshooting

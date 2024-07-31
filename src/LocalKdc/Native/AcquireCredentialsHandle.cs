@@ -5,6 +5,8 @@ namespace LocalKdc.Native;
 
 public static unsafe partial class Secur32
 {
+    public static readonly Guid SEC_WINNT_AUTH_DATA_TYPE_KEYTAB = new Guid("D587AAE8-F78F-4455-A112-C934BEEE7CE1");
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct SEC_WINNT_AUTH_IDENTITY_W
     {
@@ -16,6 +18,48 @@ public static unsafe partial class Secur32
         public int PasswordLength;
         public WinNTAuthIdentityFlags Flags;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SEC_WINNT_AUTH_IDENTITY_EX2
+    {
+        public const int SEC_WINNT_AUTH_IDENTITY_VERSION_2 = 0x201;
+
+        public int Version;
+        public short cbHeaderLength;
+        public int cbStructureLength;
+        public int UserOffset;
+        public short UserLength;
+        public int DomainOffset;
+        public short DomainLength;
+        public int PackedCredentialsOffset;
+        public short PackedCredentialsLength;
+        public WinNTAuthIdentityFlags Flags;
+        public int PackageListOffset;
+        public short PackageListLength;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SEC_WINNT_AUTH_PACKED_CREDENTIALS
+    {
+        public short cbHeaderLength;
+        public short cbStructureLength;
+        public SEC_WINNT_AUTH_DATA AuthData;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SEC_WINNT_AUTH_DATA
+    {
+        public Guid CredType;
+        public SEC_WINNT_AUTH_BYTE_VECTOR CredData;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SEC_WINNT_AUTH_BYTE_VECTOR
+    {
+        public int ByteArrayOffset;
+        public short ByteArrayLength;
+    }
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct SECURITY_INTEGER
@@ -47,7 +91,7 @@ public static unsafe partial class Secur32
         ReadOnlySpan<char> pPackage,
         CredentialUse fCredentialUse,
         nint pvLogonId,
-        SEC_WINNT_AUTH_IDENTITY_W* pAuthData,
+        void* pAuthData,
         nint pGetKeyFn,
         nint pvGetKeyArgument,
         SafeSspiCredentialHandle phCredential,

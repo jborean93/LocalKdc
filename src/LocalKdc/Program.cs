@@ -1,6 +1,8 @@
+using Kerberos.NET.Crypto;
 using Kerberos.NET.Server;
 using Microsoft.Extensions.Logging;
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -41,10 +43,11 @@ public class Program
 
         if (listenerAddress == "test")
         {
-            SspiClient.TryKerberosAuth(
+            SspiTest.TryKerberosAuth(
                 $"{USERNAME}@{REALM.ToUpperInvariant()}",
                 PASSWORD,
                 $"host/{SERVICE}.{REALM}",
+                await File.ReadAllBytesAsync($"{SERVICE}.keytab"),
                 loggerFactory);
         }
         else
@@ -64,6 +67,11 @@ public class Program
             if (nrptRule != null)
             {
                 nrptRule.Remove().GetAwaiter().GetResult();
+            }
+            string keyTabPath = $"{SERVICE}.keytab";
+            if (File.Exists(keyTabPath))
+            {
+                File.Delete(keyTabPath);
             }
         };
 
@@ -91,6 +99,8 @@ public class Program
             PrincipalType.Service, SERVICE, kdcRealm,
             Encoding.Unicode.GetBytes(PASSWORD));
         principalService.Add($"host/{SERVICE}.{kdcRealm}", servicePrinc);
+        KerberosKeyTab.WriteKeytab(servicePrinc, $"{SERVICE}.keytab",
+            [EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.AES128_CTS_HMAC_SHA1_96]);
 
         var userPrinc = new FakeKerberosPrincipal(
             PrincipalType.User, USERNAME, kdcRealm,

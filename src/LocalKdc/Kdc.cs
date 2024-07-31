@@ -95,7 +95,7 @@ public class KdcServer : IDisposable
     }
 }
 
-class FakeRealmService : IRealmService
+public class FakeRealmService : IRealmService
 {
     private readonly IPrincipalService _principalService;
 
@@ -119,7 +119,7 @@ class FakeRealmService : IRealmService
     public Krb5Config Configuration { get; private set; }
 }
 
-internal class FakeRealmSettings : IRealmSettings
+public class FakeRealmSettings : IRealmSettings
 {
     public FakeRealmSettings()
     { }
@@ -133,7 +133,7 @@ internal class FakeRealmSettings : IRealmSettings
     public KerberosCompatibilityFlags Compatibility => KerberosCompatibilityFlags.None;
 }
 
-class FakePrincipalService : IPrincipalService
+public class FakePrincipalService : IPrincipalService
 {
     private readonly Dictionary<string, IKerberosPrincipal> _principals;
 
@@ -196,7 +196,7 @@ class FakePrincipalService : IPrincipalService
     }
 }
 
-class FakeKerberosPrincipal : IKerberosPrincipal
+public class FakeKerberosPrincipal : IKerberosPrincipal
 {
     private readonly byte[] _password;
 
