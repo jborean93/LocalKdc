@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/LocalKdc/${env:PROCESSOR_ARCHITECTURE}/LocalKdc.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+
+    ]
+}

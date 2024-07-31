@@ -1,0 +1,18 @@
+{
+    //-------- Files configuration --------
+    // When enabled, will trim trailing whitespace when you save a file.
+    "files.trimTrailingWhitespace": true,
+    // When enabled, insert a final new line at the end of the file when saving it.
+    "files.insertFinalNewline": true,
+    "editor.formatOnSave": true,
+    "search.exclude": {
+        "Release": true,
+        "tools/ResGen": true,
+        "tools/dotnet": true,
+    },
+    "editor.rulers": [
+        80,
+        120,
+    ],
+    "dotnet.defaultSolution": "LocalKdc.sln",
+}
