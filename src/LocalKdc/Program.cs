@@ -111,7 +111,7 @@ public class Program
             REALM,
             loggerFactory);
         dnsServer.AddARecord($"dc01.{REALM}", listener);
-        dnsServer.AddSRVRecord($"_ldap._tcp.dc._msdcs.{REALM}", $"dc01.{REALM}", KDC_PORT);
+        dnsServer.AddSRVRecord($"_ldap._tcp.dc._msdcs.{REALM}", $"dc01.{REALM}", LDAP_PORT);
         dnsServer.AddSRVRecord($"_kerberos._tcp.dc._msdcs.{REALM}", $"dc01.{REALM}", KDC_PORT);
 
         using LdapServer ldapServer = new(listener, LDAP_PORT, loggerFactory);
